@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>哨兵监控</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#10151c;color:#e8edf3;font:15px/1.5 system-ui,"Microsoft YaHei",sans-serif}
+    header{padding:16px 24px;background:#1a222d;border-bottom:1px solid #303a46;display:flex;justify-content:space-between;align-items:center}
+    h1{font-size:20px;margin:0}.layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;padding:18px;max-width:1500px;margin:auto}
+    .panel{background:#1a222d;border:1px solid #303a46;border-radius:8px;padding:16px}.video-box{background:#070a0e;width:100%;min-height:240px;max-height:75vh;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:6px}
+    #feed{display:none;width:100%;height:auto;max-height:75vh;object-fit:contain;object-position:center}#placeholder{color:#8793a1}.controls{display:flex;gap:10px;align-items:center;margin:14px 0 4px;flex-wrap:wrap}
+    button,.file-label{border:0;border-radius:5px;background:#3478f6;color:white;padding:9px 14px;cursor:pointer;font:inherit}button:disabled{opacity:.5;cursor:default}#stop{background:#a83d45}.file-label{display:inline-block}
+    input[type=file]{display:none}.muted{color:#9aa7b5;font-size:13px}.status{display:flex;gap:8px;align-items:center}.dot{width:9px;height:9px;border-radius:50%;background:#818b96}.dot.live{background:#37d67a;box-shadow:0 0 8px #37d67a}
+    h2{font-size:16px;margin:0 0 12px}.event{padding:10px 0;border-bottom:1px solid #303a46}.event strong{color:#ff7777}.event small{display:block;color:#9aa7b5;margin-top:3px}.empty{color:#9aa7b5;padding:16px 0}
+    .alarm{position:fixed;inset:0;z-index:5;display:none;place-items:center;background:#b11e25dd;font-size:clamp(30px,6vw,72px);font-weight:800;text-align:center;animation:flash .7s infinite alternate}.alarm.show{display:grid}@keyframes flash{to{background:#5d1015dd}}
+    @media(max-width:850px){.layout{grid-template-columns:1fr;padding:10px}header{padding:14px}}
+  </style>
+</head>
+<body>
+  <header><h1>哨兵机器人 · 视频监控</h1><div class="status"><span id="dot" class="dot"></span><span id="status">等待上传视频</span></div></header>
+  <main class="layout">
+    <section class="panel">
+      <div class="video-box"><img id="feed" alt="实时检测画面"><div id="placeholder">选择并上传视频开始检测</div></div>
+      <div class="controls"><label class="file-label" for="videoFile">选择视频</label><input id="videoFile" type="file" accept="video/*"><button id="start">开始检测</button><button id="stop" disabled>停止</button><span id="filename" class="muted">支持 MP4、MOV、AVI、MKV、WebM</span></div>
+      <div class="muted">动物、烟雾或火焰持续出现超过 1 秒时报警。视频将在服务端逐帧检测。</div>
+    </section>
+    <aside class="panel"><h2>报警记录</h2><div id="events" class="empty">暂无报警</div></aside>
+  </main>
+  <div id="alarm" class="alarm" role="alert">⚠ 检测到持续风险，请立即查看！</div>
+  <script>
+    const fileInput=document.querySelector('#videoFile'), startButton=document.querySelector('#start'), stopButton=document.querySelector('#stop');
+    let previousEventIds=new Set(), alarmTimer=null, audioContext=null, beepTimer=null;
+    function startBeep(){try{audioContext ||= new AudioContext();const tone=()=>{const osc=audioContext.createOscillator(),gain=audioContext.createGain();osc.frequency.value=880;gain.gain.value=.12;osc.connect(gain);gain.connect(audioContext.destination);osc.start();osc.stop(audioContext.currentTime+.18)};tone();beepTimer=setInterval(tone,500)}catch{}}
+    function stopBeep(){clearInterval(beepTimer);beepTimer=null}
+    fileInput.addEventListener('change',()=>document.querySelector('#filename').textContent=fileInput.files[0]?.name||'支持 MP4、MOV、AVI、MKV、WebM');
+    startButton.addEventListener('click',async()=>{
+      const file=fileInput.files[0];if(!file){alert('请先选择视频');return}
+      try{audioContext ||= new AudioContext();await audioContext.resume()}catch{}
+      const body=new FormData();body.append('video',file);
+      startButton.disabled=true;
+      try{const response=await fetch('/api/start',{method:'POST',body});const result=await response.json();if(!response.ok)throw new Error(result.error);
+        document.querySelector('#feed').src='/video?ts='+Date.now();document.querySelector('#feed').style.display='block';document.querySelector('#placeholder').style.display='none';stopButton.disabled=false;
+      }catch(e){alert(e.message)}finally{startButton.disabled=false}
+    });
+    stopButton.addEventListener('click',async()=>{await fetch('/api/stop',{method:'POST'});stopButton.disabled=true});
+    async function refresh(){try{const r=await fetch('/api/status');const s=await r.json();document.querySelector('#status').textContent=s.status;document.querySelector('#dot').classList.toggle('live',s.running);
+      stopButton.disabled=!s.running;document.querySelector('#events').innerHTML=s.events.length?s.events.map(e=>`<div class="event"><strong>⚠ ${e.category}</strong><small>${e.time} · ${e.message}</small></div>`).join(''):'<div class="empty">暂无报警</div>';
+      const fresh=s.events.some(e=>!previousEventIds.has(e.id));if(fresh){document.querySelector('#alarm').classList.add('show');startBeep();clearTimeout(alarmTimer);alarmTimer=setTimeout(()=>{document.querySelector('#alarm').classList.remove('show');stopBeep()},5000)}
+      previousEventIds=new Set(s.events.map(e=>e.id));
+    }catch{} }
+    setInterval(refresh,700);refresh();
+  </script>
+</body>
+</html>

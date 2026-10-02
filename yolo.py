@@ -29,7 +29,7 @@ def main():
     print(f"检测视频已保存到: {output_dir}")
 
     # 烟雾的识别
-    smoke_model = YOLO(r"C:\Users\31058\Desktop\哨兵机器人\yolo11-d-fire-dataset.pt")  
+    smoke_model = YOLO(r"C:\Users\31058\Desktop\哨兵机器人\yolo11-d-fire-dataset.pt")
     # 烟雾检测模型
     video_path_smoke = Path(__file__).parent / "input" / "gen_fire.mp4"
     out_dir_smoke = Path(__file__).parent / "output"
