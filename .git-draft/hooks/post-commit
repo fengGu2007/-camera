@@ -1,0 +1,5 @@
+#!/bin/sh
+# BEGIN Qoder AI tracker
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd -W 2>/dev/null || pwd)"
+ELECTRON_RUN_AS_NODE=1 "C:/Users/31058/AppData/Local/Programs/Qoder CN/Qoder CN.exe" "C:/Users/31058/AppData/Local/Programs/Qoder CN/resources/app.asar.unpacked/node_modules/@qoder-ai/qoder-cn-agent-sdk/dist/_worker/qoder-worker-runtime.obf.mjs" commit --hook --workspace "$repo_root" 2>/dev/null || true
+# END Qoder AI tracker
